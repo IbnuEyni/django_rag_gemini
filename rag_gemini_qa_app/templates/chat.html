@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RAG Application</title>
+</head>
+<body>
+    <h1>RAG Application built on Gemini Model</h1>
+    <form id="chat-form" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <label for="pdf-file">Upload PDF:</label>
+        <input type="file" name="pdf_file" id="pdf-file" required><br><br>
+        
+        <label for="query">Enter your query:</label>
+        <input type="text" name="query" id="query" placeholder="Say something..." required><br><br>
+
+        <button type="submit">Submit</button>
+    </form>
+    <div id="response"></div>
+
+    <script>
+        document.getElementById('chat-form').addEventListener('submit', async function (event) {
+            event.preventDefault();
+
+            const formData = new FormData(this);
+            const response = await fetch("{% url 'chat' %}", {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            const result = await response.json();
+            document.getElementById('response').innerText = result.answer;
+        });
+    </script>
+</body>
+</html>

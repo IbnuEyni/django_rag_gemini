@@ -6,6 +6,5 @@ from rag_gemini_qa_app import views
 
 urlpatterns = [
     path("", views.main ,name="upload"),
-    # path('ask/', views.ask_question, name='ask_question'),
 
-]
+] 
