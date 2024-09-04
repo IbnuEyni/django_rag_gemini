@@ -1,2 +1,13 @@
 # ignore API_KEY
 .env
+
+#chroma db
+chroma_db/
+
+data/
+db.sqlite3
+
+rag_gemini_chat/__pycache__/
+rag_gemini_qa_app/__pycache__/
+rag_app/__pycache__/
+
