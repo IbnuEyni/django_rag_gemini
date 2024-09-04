@@ -13,15 +13,30 @@ from langchain_chroma import Chroma
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
+from docx import Document
 
 # Load environment variables
 load_dotenv()
 
-def initialize_components(pdf_path):
-    # Load the PDF data
-    loader = PyPDFLoader(pdf_path)
-    data = loader.load()
-    
+def initialize_components(file_path, file_type):
+    # Ensure that file_path is an absolute path relative to the data directory
+    absolute_file_path = os.path.join(settings.BASE_DIR, file_path)
+
+    # Load the file data
+    if file_type == 'pdf':
+        loader = PyPDFLoader(absolute_file_path)
+        data = loader.load()
+    elif file_type == 'txt':
+        with open(absolute_file_path, 'r', encoding='utf-8') as file:
+            data = file.readlines()
+    elif file_type in ['doc', 'docx']:
+        data = []
+        doc = Document(absolute_file_path)
+        for para in doc.paragraphs:
+            data.append(para.text)
+    else:
+        raise ValueError(f"Unsupported file type: {file_type}")
+
     # Initialize the text splitter with chunk size and overlap
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000)
     
@@ -59,27 +74,29 @@ def chat_view(request):
     if request.method == 'POST':
         print("Handling POST request")  # Log that a POST request is being handled
 
-        if 'pdf_file' in request.FILES:
-            pdf_file = request.FILES['pdf_file']
-            print("Received PDF file upload")  # Log that a PDF file was received
+        if 'pdf_file' in request.FILES or 'txt_file' in request.FILES or 'doc_file' in request.FILES:
+            uploaded_file = request.FILES.get('pdf_file') or request.FILES.get('txt_file') or request.FILES.get('doc_file')
+            file_type = 'pdf' if 'pdf_file' in request.FILES else 'txt' if 'txt_file' in request.FILES else 'doc' if uploaded_file.name.endswith('.doc') else 'docx'
 
-            # Save the PDF file to the 'data' directory
-            fs = FileSystemStorage(location='data')
-            file_name = fs.save(pdf_file.name, pdf_file)
-            pdf_path = fs.url(file_name)
-            print(f"PDF file saved at: {pdf_path}")  # Log where the PDF file was saved
+            print(f"Received {file_type} file upload")  # Log that a file was received
+
+            # Save the file to the 'data' directory
+            fs = FileSystemStorage(location=os.path.join(settings.BASE_DIR, 'data'))
+            file_name = fs.save(uploaded_file.name, uploaded_file)
+            file_path = os.path.join('data', file_name)  # Use relative path from BASE_DIR
+            print(f"File saved at: {file_path}")  # Log where the file was saved
 
             try:
-                # Initialize components with the saved PDF path
-                print("Initializing components with PDF file")  # Log that component initialization is starting
-                retriever, llm = initialize_components(os.path.join('data', file_name))
+                # Initialize components with the saved file path
+                print("Initializing components with file")  # Log that component initialization is starting
+                retriever, llm = initialize_components(file_path, file_type)
                 
-                # Store retriever and llm in session
-                request.session['retriever'] = retriever
-                request.session['llm'] = llm
-                print("Components initialized and stored in session successfully")  # Log successful initialization and storage
+                # Store file path and type in session
+                request.session['file_path'] = file_path
+                request.session['file_type'] = file_type
+                print("Components metadata stored in session successfully")  # Log successful storage
 
-                return JsonResponse({"success": True, "message": "PDF uploaded successfully"})
+                return JsonResponse({"success": True, "message": f"{file_type.upper()} uploaded successfully"})
             except Exception as e:
                 print(f"Error initializing components: {e}")  # Log any errors during initialization
                 return JsonResponse({"success": False, "error": "Error initializing components"})
@@ -90,14 +107,17 @@ def chat_view(request):
                 print(f"Received query: {query}")  # Log the received query
 
                 try:
-                    # Retrieve components from session
-                    retriever = request.session.get('retriever')
-                    llm = request.session.get('llm')
-                    print("Retrieved components from session")  # Log that components were retrieved
+                    # Retrieve components from metadata in session
+                    file_path = request.session.get('file_path')
+                    file_type = request.session.get('file_type')
 
-                    if retriever is None or llm is None:
-                        print("Error: Components not initialized or expired")  # Log if components are not available
-                        return JsonResponse({"answer": "Error: Components not available. Please upload a PDF first."})
+                    if not file_path or not file_type:
+                        print("Error: Metadata not available or expired")  # Log if metadata is not available
+                        return JsonResponse({"answer": "Error: Metadata not available. Please upload a file first."})
+
+                    # Reinitialize components with metadata 
+                    retriever, llm = initialize_components(file_path, file_type)
+                    print("Components reinitialized successfully")  # Log successful reinitialization
 
                     # Define the system prompt
                     system_prompt = (
