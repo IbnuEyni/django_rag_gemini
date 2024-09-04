@@ -19,7 +19,7 @@ This project contains two Django-based applications for document processing and 
 ## Demo
 
 
-![ Demo](data/RAG_demo.png.png)
+![ Demo](RAG_demo.png)
 
 ## Setup and Installation
 
